@@ -126,10 +126,10 @@ function Sidebar({
                       value={historyInputId}
                       onChange={(e) => setHistoryInputId(e.target.value)}
                     />
-                    <button onClick={() => {
+                    <button onClick={async () => {
                       if(historyInputId) {
-                        onAddExistingAccount(historyInputId);
-                        setHistoryInputId('');
+                        const success = await onAddExistingAccount(historyInputId);
+                        if(success) setHistoryInputId('');
                       }
                     }}>ซิงค์ข้อมูล</button>
                   </div>
@@ -145,10 +145,10 @@ function Sidebar({
                       value={historyInputId}
                       onChange={(e) => setHistoryInputId(e.target.value)}
                     />
-                    <button onClick={() => {
+                    <button onClick={async () => {
                       if(historyInputId) {
-                        onAddExistingAccount(historyInputId);
-                        setHistoryInputId('');
+                        const success = await onAddExistingAccount(historyInputId);
+                        if(success) setHistoryInputId('');
                       }
                     }}>ตกลง</button>
                   </div>
@@ -254,12 +254,14 @@ function Sidebar({
                             value={newAccountId}
                             onChange={(e) => setNewAccountId(e.target.value)}
                           />
-                          <button className="btn-confirm-id" onClick={() => {
+                          <button className="btn-confirm-id" onClick={async () => {
                             if(newAccountId) {
-                              onAddExistingAccount(newAccountId);
-                              setNewAccountId('');
-                              setIsSwitcherOpen(false);
-                              setIsEnteringId(false);
+                              const success = await onAddExistingAccount(newAccountId);
+                              if (success) {
+                                setNewAccountId('');
+                                setIsSwitcherOpen(false);
+                                setIsEnteringId(false);
+                              }
                             }
                           }}>ตกลง</button>
                         </div>

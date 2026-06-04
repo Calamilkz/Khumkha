@@ -3,9 +3,10 @@ import ItemCard from './components/ItemCard';
 import Sidebar from './components/Sidebar';
 import ConfirmModal from './components/ConfirmModal';
 import RenameModal from './components/RenameModal';
+import AlertModal from './components/AlertModal';
 import ExplanIcon from './components/Icon/Explan.png';
 import { db } from './firebase';
-import { collection, addDoc, getDocs, query, deleteDoc, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, deleteDoc, doc, updateDoc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import './App.css';
 
 let nextId = 0;
@@ -64,6 +65,8 @@ function App() {
   
   const [historyToRename, setHistoryToRename] = useState(null);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+
+  const [isIdNotFoundModalOpen, setIsIdNotFoundModalOpen] = useState(false);
 
   // Track the current active history document ID
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
@@ -130,20 +133,32 @@ function App() {
     setCurrentHistoryId(null);
   }, [resetResults]);
 
-  const addExistingAccount = useCallback((id) => {
-    localStorage.setItem('khumkha_user_id', id);
-    setUserId(id);
-    setAllAccounts(prev => {
-      if (!prev.includes(id)) {
-        const newAll = [...prev, id];
-        localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
-        return newAll;
+  const addExistingAccount = useCallback(async (id) => {
+    try {
+      const docSnap = await getDoc(doc(db, 'histories', id));
+      if (!docSnap.exists()) {
+        setIsIdNotFoundModalOpen(true);
+        return false;
       }
-      return prev;
-    });
-    setItems([createItem(0), createItem(1)]);
-    resetResults();
-    setCurrentHistoryId(null);
+      
+      localStorage.setItem('khumkha_user_id', id);
+      setUserId(id);
+      setAllAccounts(prev => {
+        if (!prev.includes(id)) {
+          const newAll = [...prev, id];
+          localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+          return newAll;
+        }
+        return prev;
+      });
+      setItems([createItem(0), createItem(1)]);
+      resetResults();
+      setCurrentHistoryId(null);
+      return true;
+    } catch (error) {
+      console.error("Error checking ID: ", error);
+      return false;
+    }
   }, [resetResults]);
 
   const confirmDeleteAccount = useCallback(async () => {
@@ -472,6 +487,13 @@ function App() {
           setIsDeleteAccountModalOpen(false);
           setAccountToDelete(null);
         }}
+      />
+
+      <AlertModal
+        isOpen={isIdNotFoundModalOpen}
+        title="ข้อผิดพลาด"
+        message="ไม่พบ ID นี้"
+        onClose={() => setIsIdNotFoundModalOpen(false)}
       />
 
       {showDataAlert && (
