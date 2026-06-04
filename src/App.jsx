@@ -13,6 +13,23 @@ function createId() {
   return `item-${Date.now()}-${++nextId}`;
 }
 
+function generateAccountId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  if (window.crypto && window.crypto.getRandomValues) {
+    const array = new Uint8Array(20);
+    window.crypto.getRandomValues(array);
+    for (let i = 0; i < 20; i++) {
+      result += chars[array[i] % chars.length];
+    }
+  } else {
+    for (let i = 0; i < 20; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+  }
+  return result;
+}
+
 function createItem(index) {
   return {
     id: createId(),
@@ -30,6 +47,11 @@ function App() {
   const [winnerId, setWinnerId] = useState(null);
   const [showError, setShowError] = useState(false);
   
+  // New States for In-App & Account Switcher
+  const [isInAppBrowser, setIsInAppBrowser] = useState(false);
+  const [allAccounts, setAllAccounts] = useState([]);
+  const [showDataAlert, setShowDataAlert] = useState(false);
+  
   // Sidebar & Modals state
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [histories, setHistories] = useState([]);
@@ -37,21 +59,127 @@ function App() {
   const [historyToDelete, setHistoryToDelete] = useState(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   
+  const [accountToDelete, setAccountToDelete] = useState(null);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+  
   const [historyToRename, setHistoryToRename] = useState(null);
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
 
   // Track the current active history document ID
   const [currentHistoryId, setCurrentHistoryId] = useState(null);
 
-  // Authentication
-  useEffect(() => {
-    let id = localStorage.getItem('khumkha_user_id');
-    if (!id) {
-      id = crypto.randomUUID ? crypto.randomUUID() : `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('khumkha_user_id', id);
-    }
-    setUserId(id);
+  const resetResults = useCallback(() => {
+    setResults({});
+    setWinnerId(null);
+    setShowError(false);
   }, []);
+
+  // Authentication & Detection
+  useEffect(() => {
+    const isApp = /Line|FBAN|FBAV|Instagram/i.test(navigator.userAgent);
+    setIsInAppBrowser(isApp);
+
+    let allIds = [];
+    try {
+      const stored = localStorage.getItem('khumkha_all_user_ids');
+      if (stored) allIds = JSON.parse(stored);
+    } catch (e) { console.error(e); }
+    setAllAccounts(allIds);
+
+    let id = localStorage.getItem('khumkha_user_id');
+    if (id) {
+      setUserId(id);
+      if (!allIds.includes(id)) {
+        const newAll = [...allIds, id];
+        setAllAccounts(newAll);
+        localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+      }
+    } else if (!isApp) {
+      // Normal browser, no ID yet. Auto-generate for UX.
+      const newId = generateAccountId();
+      localStorage.setItem('khumkha_user_id', newId);
+      setUserId(newId);
+      
+      const newAll = [...allIds, newId];
+      setAllAccounts(newAll);
+      localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+      
+      setShowDataAlert(true);
+    }
+  }, []);
+
+  const generateNewAccount = useCallback(() => {
+    const newId = generateAccountId();
+    localStorage.setItem('khumkha_user_id', newId);
+    setUserId(newId);
+    setAllAccounts(prev => {
+      const newAll = [...prev, newId];
+      localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+      return newAll;
+    });
+    setItems([createItem(0), createItem(1)]);
+    resetResults();
+    setCurrentHistoryId(null);
+  }, [resetResults]);
+
+  const switchAccount = useCallback((id) => {
+    localStorage.setItem('khumkha_user_id', id);
+    setUserId(id);
+    setItems([createItem(0), createItem(1)]);
+    resetResults();
+    setCurrentHistoryId(null);
+  }, [resetResults]);
+
+  const addExistingAccount = useCallback((id) => {
+    localStorage.setItem('khumkha_user_id', id);
+    setUserId(id);
+    setAllAccounts(prev => {
+      if (!prev.includes(id)) {
+        const newAll = [...prev, id];
+        localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+        return newAll;
+      }
+      return prev;
+    });
+    setItems([createItem(0), createItem(1)]);
+    resetResults();
+    setCurrentHistoryId(null);
+  }, [resetResults]);
+
+  const confirmDeleteAccount = useCallback(async () => {
+    if (!accountToDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'histories', accountToDelete));
+
+      const index = allAccounts.indexOf(accountToDelete);
+      const newAll = allAccounts.filter(acc => acc !== accountToDelete);
+      
+      setAllAccounts(newAll);
+      localStorage.setItem('khumkha_all_user_ids', JSON.stringify(newAll));
+
+      // If deleting active account, fallback to previous
+      if (accountToDelete === userId) {
+        if (newAll.length > 0) {
+          const fallbackId = index > 0 ? allAccounts[index - 1] : newAll[0];
+          localStorage.setItem('khumkha_user_id', fallbackId);
+          setUserId(fallbackId);
+        } else {
+          localStorage.removeItem('khumkha_user_id');
+          setUserId(null);
+        }
+        setItems([createItem(0), createItem(1)]);
+        resetResults();
+        setCurrentHistoryId(null);
+      }
+      
+      setIsDeleteAccountModalOpen(false);
+      setAccountToDelete(null);
+    } catch (error) {
+      console.error("Error deleting account: ", error);
+      alert('เกิดข้อผิดพลาดในการลบบัญชี');
+    }
+  }, [accountToDelete, userId, allAccounts, resetResults]);
 
   // Fetch histories
   const fetchHistories = useCallback(async () => {
@@ -84,11 +212,7 @@ function App() {
     fetchHistories();
   }, [fetchHistories]);
 
-  const resetResults = useCallback(() => {
-    setResults({});
-    setWinnerId(null);
-    setShowError(false);
-  }, []);
+
 
   const handleAddItem = useCallback(() => {
     setItems((prev) => {
@@ -317,6 +441,15 @@ function App() {
         onTogglePin={togglePinHistory}
         onLoadHistory={onLoadHistory}
         userId={userId}
+        isInAppBrowser={isInAppBrowser}
+        allAccounts={allAccounts}
+        onGenerateNewAccount={generateNewAccount}
+        onSwitchAccount={switchAccount}
+        onAddExistingAccount={addExistingAccount}
+        onDeleteAccountPrompt={(id) => {
+          setAccountToDelete(id);
+          setIsDeleteAccountModalOpen(true);
+        }}
       />
 
       <ConfirmModal 
@@ -329,6 +462,34 @@ function App() {
           setHistoryToDelete(null);
         }}
       />
+
+      <ConfirmModal 
+        isOpen={isDeleteAccountModalOpen}
+        title="ยืนยันการลบบัญชี"
+        message={`คุณต้องการลบรหัสผ่าน "${accountToDelete}" ออกจากรายการ ใช่หรือไม่?`}
+        onConfirm={confirmDeleteAccount}
+        onCancel={() => {
+          setIsDeleteAccountModalOpen(false);
+          setAccountToDelete(null);
+        }}
+      />
+
+      {showDataAlert && (
+        <div className="data-alert-overlay">
+          <div className="data-alert-box glass-panel">
+            <h3>บันทึกประวัติการคำนวณ?</h3>
+            <p>ระบบสร้าง ID ให้คุณแล้ว เพื่อใช้บันทึกประวัติ หากคุณไม่ต้องการบันทึกประวัติสามารถกดยกเลิกได้</p>
+            <div className="data-alert-actions">
+              <button type="button" className="btn-reject" onClick={() => {
+                localStorage.removeItem('khumkha_user_id');
+                setUserId(null);
+                setShowDataAlert(false);
+              }}>ยกเลิก</button>
+              <button type="button" className="btn-accept" onClick={() => setShowDataAlert(false)}>ตกลง</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <RenameModal
         isOpen={isRenameModalOpen}

@@ -3,18 +3,43 @@ import './Sidebar.css';
 import ReCalculateIcon from './Icon/reCalculate.png';
 import SearchIcon from './Icon/Search.png';
 import AboutIcon from './Icon/About.png';
+import CopyIcon from './Icon/copy.png';
+import SwapIcon from './Icon/swap.png';
+import CheckIcon from './Icon/check.png';
+import CloseIcon from './Icon/close.png';
 
-function Sidebar({ isOpen, onClose, onNewCalc, histories, onDeleteHistory, onRenameHistory, onTogglePin, onLoadHistory, userId }) {
+function Sidebar({ 
+  isOpen, onClose, onNewCalc, histories, onDeleteHistory, onRenameHistory, onTogglePin, onLoadHistory, 
+  userId, isInAppBrowser, allAccounts, onGenerateNewAccount, onSwitchAccount, onAddExistingAccount, onDeleteAccountPrompt
+}) {
   const [activeMenuId, setActiveMenuId] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const menuRef = useRef(null);
+
+  // Switcher states
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+  const [isEnteringId, setIsEnteringId] = useState(false);
+  const [newAccountId, setNewAccountId] = useState('');
+  const [historyInputId, setHistoryInputId] = useState('');
+  const switcherRef = useRef(null);
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(userId);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
 
   // Close floating menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenuId(null);
+      }
+      if (switcherRef.current && !switcherRef.current.contains(event.target)) {
+        setIsSwitcherOpen(false);
+        setIsEnteringId(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -27,6 +52,10 @@ function Sidebar({ isOpen, onClose, onNewCalc, histories, onDeleteHistory, onRen
       setIsSearching(false);
       setSearchQuery('');
       setActiveMenuId(null);
+      setIsSwitcherOpen(false);
+      setIsEnteringId(false);
+      setHistoryInputId('');
+      setNewAccountId('');
     }
   }, [isOpen]);
 
@@ -86,7 +115,46 @@ function Sidebar({ isOpen, onClose, onNewCalc, histories, onDeleteHistory, onRen
         <div className="sidebar-history-group">
           <h3 className="history-header">ประวัติ</h3>
           <div className="history-list">
-            {filteredHistories.length === 0 ? (
+            {!userId ? (
+              isInAppBrowser ? (
+                <div className="history-warning-box">
+                  <p>หากไม่อยากสูญเสียประวัติ ให้เปิดด้วยเบราว์เซอร์เริ่มต้นของเครื่อง หรือกรอก ID ของคุณเพื่อซิงค์ข้อมูล</p>
+                  <div className="history-input-group mt-2">
+                    <input 
+                      type="text" 
+                      placeholder="วาง ID ของคุณที่นี่..." 
+                      value={historyInputId}
+                      onChange={(e) => setHistoryInputId(e.target.value)}
+                    />
+                    <button onClick={() => {
+                      if(historyInputId) {
+                        onAddExistingAccount(historyInputId);
+                        setHistoryInputId('');
+                      }
+                    }}>ซิงค์ข้อมูล</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="history-warning-box">
+                  <p>หากไม่อยากสูญเสียประวัติ คุณสามารถสมัคร ID ใหม่ หรือกรอก ID ของคุณที่คัดลอกมาเพื่อใช้งาน</p>
+                  <button className="btn-create-id" onClick={onGenerateNewAccount}>สมัคร ID ใหม่</button>
+                  <div className="history-input-group mt-2">
+                    <input 
+                      type="text" 
+                      placeholder="วาง ID ของคุณที่นี่..." 
+                      value={historyInputId}
+                      onChange={(e) => setHistoryInputId(e.target.value)}
+                    />
+                    <button onClick={() => {
+                      if(historyInputId) {
+                        onAddExistingAccount(historyInputId);
+                        setHistoryInputId('');
+                      }
+                    }}>ตกลง</button>
+                  </div>
+                </div>
+              )
+            ) : filteredHistories.length === 0 ? (
               <div className="no-history">ไม่พบประวัติ</div>
             ) : (
               filteredHistories.map(history => (
@@ -132,11 +200,79 @@ function Sidebar({ isOpen, onClose, onNewCalc, histories, onDeleteHistory, onRen
           </div>
         </div>
 
-        {userId && (
-          <div className="sidebar-footer">
-            <span className="user-id-text">รหัสผู้ใช้: {userId}</span>
-          </div>
-        )}
+        <div className="sidebar-footer">
+          {userId ? (
+            <div className="account-switcher">
+              <span className="user-id-text">ID ปัจจุบันของคุณ: {userId}</span>
+              <div className="account-actions">
+                <button className="icon-btn copy-btn-wrapper" title="คัดลอก ID" onClick={handleCopy}>
+                  <img src={CopyIcon} alt="Copy" className={`option-icon copy-icon ${isCopied ? 'hidden' : ''}`} />
+                  <img src={CheckIcon} alt="Copied" className={`option-icon check-icon ${isCopied ? 'visible' : ''}`} />
+                </button>
+                <div className="switcher-wrapper" ref={switcherRef}>
+                  <button className="icon-btn" title="สลับบัญชี" onClick={() => setIsSwitcherOpen(!isSwitcherOpen)}>
+                    <img src={SwapIcon} alt="Swap" className="option-icon" />
+                  </button>
+                  {isSwitcherOpen && (
+                    <div className="floating-menu switcher-menu glass-panel">
+                      <div className="accounts-list">
+                        {allAccounts.map(accId => (
+                          <div className="account-item-wrapper" key={accId}>
+                            <button className={`account-select-btn ${accId === userId ? 'active' : ''}`} onClick={() => {
+                              onSwitchAccount(accId);
+                              setIsSwitcherOpen(false);
+                              setIsEnteringId(false);
+                            }}>
+                              {accId === userId ? `✓ ${accId}` : accId}
+                            </button>
+                            <button className="icon-btn delete-acc-btn" title="ลบ" onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteAccountPrompt(accId);
+                            }}>
+                              <img src={CloseIcon} alt="Delete" className="option-icon" style={{width: '10px', height: '10px'}} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="menu-divider"></div>
+                      <button onClick={() => {
+                        onGenerateNewAccount();
+                        setIsSwitcherOpen(false);
+                        setIsEnteringId(false);
+                      }}>
+                        สมัคร ID ใหม่
+                      </button>
+                      <button onClick={() => setIsEnteringId(!isEnteringId)}>
+                        กรอก ID อื่น
+                      </button>
+                      
+                      {isEnteringId && (
+                        <div className="enter-id-slide">
+                          <input 
+                            type="text" 
+                            placeholder="วาง ID ที่นี่..."
+                            value={newAccountId}
+                            onChange={(e) => setNewAccountId(e.target.value)}
+                          />
+                          <button className="btn-confirm-id" onClick={() => {
+                            if(newAccountId) {
+                              onAddExistingAccount(newAccountId);
+                              setNewAccountId('');
+                              setIsSwitcherOpen(false);
+                              setIsEnteringId(false);
+                            }
+                          }}>ตกลง</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <span className="user-id-text">ยังไม่มี ID</span>
+          )}
+        </div>
       </div>
     </>
   );

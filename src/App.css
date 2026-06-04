@@ -337,3 +337,70 @@ button {
     padding-bottom: 6rem;
   }
 }
+
+/* Data Alert Styles */
+.data-alert-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+}
+
+.data-alert-box {
+  background: rgba(30, 41, 59, 0.95);
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  padding: 2rem;
+  border-radius: 20px;
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.data-alert-box h3 {
+  margin-bottom: 1rem;
+  color: var(--text-main);
+}
+
+.data-alert-box p {
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.data-alert-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.btn-reject {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.75rem 1.5rem;
+  flex: 1;
+}
+
+.btn-reject:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.btn-accept {
+  background: var(--primary);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  flex: 1;
+}
+
+.btn-accept:hover {
+  background: var(--primary-hover);
+}
+
